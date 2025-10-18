@@ -1,0 +1,185 @@
+name: Build Astroberry64 Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Image variant to build'
+        required: true
+        default: 'lite'
+        type: choice
+        options:
+          - lite
+          - standard
+      upload_destination:
+        description: 'Upload destination'
+        required: true
+        default: 'github'
+        type: choice
+        options:
+          - github
+          - archive
+          - both
+
+  schedule:
+    - cron: '0 3 * * *'  # Daily at 3 AM UTC
+
+  repository_dispatch:
+    types: [package-updated]
+
+env:
+  BUILD_VARIANT: ${{ github.event.inputs.variant || 'lite' }}
+  UPLOAD_DEST: ${{ github.event.inputs.upload_destination || 'github' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo apt-get clean
+          df -h
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            kpartx \
+            qemu-user-static \
+            wget \
+            xz-utils \
+            parted \
+            zerofree
+
+          # Install PiShrink
+          wget https://raw.githubusercontent.com/Drewsif/PiShrink/master/pishrink.sh
+          chmod +x pishrink.sh
+          sudo mv pishrink.sh /usr/local/bin/
+
+      - name: Download Raspberry Pi OS base image
+        run: |
+          ./scripts/download-base-image.sh
+          ls -lh *.img.xz
+
+      - name: Extract base image
+        run: |
+          xz -d -k *.img.xz
+          BASE_IMG=$(ls *.img | head -1)
+          echo "BASE_IMAGE=$BASE_IMG" >> $GITHUB_ENV
+          ls -lh $BASE_IMG
+
+      - name: Customize image
+        run: |
+          OUTPUT_IMG="astroberry64-${BUILD_VARIANT}.img"
+          sudo ./scripts/customize-image.sh "$BASE_IMAGE" "$OUTPUT_IMG"
+          echo "OUTPUT_IMAGE=$OUTPUT_IMG" >> $GITHUB_ENV
+          ls -lh $OUTPUT_IMG
+
+      - name: Shrink and compress image
+        run: |
+          sudo pishrink.sh -z "$OUTPUT_IMAGE"
+          COMPRESSED_IMG="${OUTPUT_IMAGE}.xz"
+          echo "COMPRESSED_IMAGE=$COMPRESSED_IMG" >> $GITHUB_ENV
+          ls -lh $COMPRESSED_IMG
+
+      - name: Generate checksums
+        run: |
+          sha256sum "$COMPRESSED_IMAGE" > "${COMPRESSED_IMAGE}.sha256"
+          cat "${COMPRESSED_IMAGE}.sha256"
+
+      - name: Get image info
+        id: image_info
+        run: |
+          SIZE_MB=$(du -m "$COMPRESSED_IMAGE" | cut -f1)
+          SIZE_GB=$(echo "scale=2; $SIZE_MB / 1024" | bc)
+          DATE=$(date +%Y-%m-%d)
+          VERSION=$(grep astroberry64-server-full <(apt-cache policy astroberry64-server-full) | head -1 | awk '{print $2}' || echo "unknown")
+
+          echo "size_mb=$SIZE_MB" >> $GITHUB_OUTPUT
+          echo "size_gb=$SIZE_GB" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "Image size: ${SIZE_GB} GB"
+          echo "Build date: $DATE"
+
+      - name: Create release notes
+        run: |
+          cat > release-notes.md << EOF
+          # Astroberry64 ${BUILD_VARIANT^} Image - ${{ steps.image_info.outputs.date }}
+
+          ## Image Details
+          - **Variant**: ${BUILD_VARIANT}
+          - **Size**: ${{ steps.image_info.outputs.size_gb }} GB (compressed)
+          - **Base**: Raspberry Pi OS Trixie Desktop (arm64)
+          - **Build Date**: ${{ steps.image_info.outputs.date }}
+          - **Astroberry64 Version**: ${{ steps.image_info.outputs.version }}
+
+          ## What's Included
+          - All Astroberry64 packages (INDI, KStars, PHD2, etc.)
+          - Pre-configured remote access (noVNC + RustDesk support)
+          - Optimized with ~648 MB bloat removed
+          - Auto-expansion on first boot
+
+          ## Installation
+          1. Download the image file
+          2. Flash to SD card (8GB minimum, 16GB+ recommended)
+          3. Boot your Raspberry Pi 4/5
+          4. First boot will auto-expand and reboot (~2 minutes)
+          5. Access via \`http://astroberry.local/desktop/\`
+
+          ## Default Credentials
+          - **Username**: astroberry
+          - **Password**: astrober
+
+          ## Verification
+          \`\`\`bash
+          sha256sum -c ${COMPRESSED_IMAGE}.sha256
+          \`\`\`
+
+          ## Support
+          - **Issues**: https://github.com/astroberry64/astroberry64-imager/issues
+          - **Documentation**: https://github.com/astroberry64/astroberry64-imager
+          EOF
+
+          cat release-notes.md
+
+      - name: Upload to GitHub Releases
+        if: env.UPLOAD_DEST == 'github' || env.UPLOAD_DEST == 'both'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.image_info.outputs.date }}-${{ env.BUILD_VARIANT }}
+          name: Astroberry64 ${{ env.BUILD_VARIANT }} - ${{ steps.image_info.outputs.date }}
+          body_path: release-notes.md
+          files: |
+            ${{ env.COMPRESSED_IMAGE }}
+            ${{ env.COMPRESSED_IMAGE }}.sha256
+          draft: false
+          prerelease: ${{ github.event_name == 'schedule' || github.event_name == 'repository_dispatch' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # TODO: Add Internet Archive upload
+      # - name: Upload to Internet Archive
+      #   if: env.UPLOAD_DEST == 'archive' || env.UPLOAD_DEST == 'both'
+      #   run: |
+      #     pip install internetarchive
+      #     ia configure  # Requires IA_ACCESS_KEY and IA_SECRET_KEY secrets
+      #     ia upload astroberry64-images-${{ steps.image_info.outputs.date }} \
+      #       "$COMPRESSED_IMAGE" \
+      #       --metadata="title:Astroberry64 ${BUILD_VARIANT} Image ${{ steps.image_info.outputs.date }}" \
+      #       --metadata="collection:opensource" \
+      #       --metadata="mediatype:software"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo rm -f *.img *.img.xz || true
+          df -h

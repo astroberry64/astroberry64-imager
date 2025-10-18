@@ -1,0 +1,35 @@
+# Raspberry Pi OS images
+*.img
+*.img.xz
+*.img.gz
+*.zip
+
+# Checksums
+*.sha256
+*.md5
+
+# Build artifacts
+*.log
+release-notes.md
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
