@@ -60,20 +60,23 @@ The final image will be `astroberry64-lite.img.xz` (~1.8 GB compressed).
 
 ### Triggers
 
-- **Manual**: Workflow dispatch from Actions tab
-- **Scheduled**: Daily at 3 AM UTC
-- **Webhook**: When astroberry64 packages are updated
+- **Manual**: Workflow dispatch from Actions tab (for testing and ad-hoc builds)
+- **Webhook**: `repository_dispatch` when astroberry64-repo packages are updated (configured but not yet in use)
+- **Smart Daily Check** *(planned)*: Daily workflow checks if packages changed since last build, triggers build only if needed
 
-### Workflow
+### Build Process
 
-1. Downloads latest Raspberry Pi OS
-2. Customizes with Astroberry64 packages
-3. Removes bloat packages
-4. Shrinks and compresses image
+1. Downloads latest Raspberry Pi OS Desktop (arm64)
+2. Customizes with Astroberry64 packages from trixie-testing
+3. Removes bloat packages (~648 MB saved)
+4. Shrinks and compresses image with PiShrink
 5. Generates SHA256 checksums
-6. Uploads to:
-   - GitHub Releases (if <2GB)
-   - Internet Archive (all sizes)
+6. Creates GitHub Release with:
+   - Compressed image (.xz)
+   - SHA256 checksum file
+   - Release notes with installation instructions
+7. Build time: ~30-60 minutes
+8. Output: ~1.8 GB compressed (lite variant)
 
 ## What's Included
 

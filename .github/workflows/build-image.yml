@@ -1,5 +1,10 @@
 name: Build Astroberry64 Image
 
+# Triggers:
+# - Manual: workflow_dispatch (for testing and ad-hoc builds)
+# - Webhook: repository_dispatch when packages are updated
+# - Daily check workflow (to be implemented): will check for package changes and trigger if needed
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,9 +25,6 @@ on:
           - github
           - archive
           - both
-
-  schedule:
-    - cron: '0 3 * * *'  # Daily at 3 AM UTC
 
   repository_dispatch:
     types: [package-updated]
@@ -100,7 +102,13 @@ jobs:
           SIZE_MB=$(du -m "$COMPRESSED_IMAGE" | cut -f1)
           SIZE_GB=$(echo "scale=2; $SIZE_MB / 1024" | bc)
           DATE=$(date +%Y-%m-%d)
-          VERSION=$(grep astroberry64-server-full <(apt-cache policy astroberry64-server-full) | head -1 | awk '{print $2}' || echo "unknown")
+
+          # Get version from astroberry64-repo (the source we built from)
+          VERSION=$(curl -s 'https://astroberry64.github.io/astroberry64-repo/dists/trixie-testing/main/binary-arm64/Packages' | \
+            grep -A2 "^Package: astroberry64-server-full$" | \
+            grep "^Version:" | \
+            awk '{print $2}' | \
+            head -1 || echo "unknown")
 
           echo "size_mb=$SIZE_MB" >> $GITHUB_OUTPUT
           echo "size_gb=$SIZE_GB" >> $GITHUB_OUTPUT
