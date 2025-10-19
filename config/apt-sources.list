@@ -1,3 +1,4 @@
 # Astroberry64 APT Repository
-# Stable channel for production releases
-deb [trusted=yes] https://astroberry64.github.io/astroberry64-repo/ trixie-stable main
+# Testing channel with all latest automated builds
+# (trixie-stable not yet available - awaiting promotion system)
+deb [trusted=yes] https://astroberry64.github.io/astroberry64-repo/ trixie-testing main

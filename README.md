@@ -131,8 +131,8 @@ Edit `config/packages-to-remove.txt` to customize which packages are removed.
 ### APT Repository
 
 Edit `config/apt-sources.list` to change repository channel:
-- `trixie-stable` - Production releases (default)
-- `trixie-testing` - Latest automated builds
+- `trixie-testing` - Latest automated builds (default)
+- `trixie-stable` - Production releases (not yet available - awaiting promotion system)
 
 ## First Boot
 
