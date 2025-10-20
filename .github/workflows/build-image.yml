@@ -86,7 +86,7 @@ jobs:
 
       - name: Shrink and compress image
         run: |
-          sudo pishrink.sh -z "$OUTPUT_IMAGE"
+          sudo pishrink.sh -Z "$OUTPUT_IMAGE"
           COMPRESSED_IMG="${OUTPUT_IMAGE}.xz"
           echo "COMPRESSED_IMAGE=$COMPRESSED_IMG" >> $GITHUB_ENV
           ls -lh $COMPRESSED_IMG

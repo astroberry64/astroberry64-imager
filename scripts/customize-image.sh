@@ -145,7 +145,25 @@ chroot "$MOUNT_ROOT" /bin/bash -c "cd /tmp/astroberry-setup && ./cleanup-image.s
 rm -rf "$MOUNT_ROOT/tmp/astroberry-setup"
 rm -f "$MOUNT_ROOT/usr/bin/qemu-aarch64-static"
 
-echo "[10/10] Synchronizing filesystems..."
+echo "[10/10] Shrinking filesystem to minimum size..."
+# Unmount all filesystems before resize
+umount "$MOUNT_ROOT/boot/firmware" 2>/dev/null || true
+for dir in proc sys dev/pts dev; do
+    umount -l "$MOUNT_ROOT/$dir" 2>/dev/null || true
+done
+umount "$MOUNT_ROOT" 2>/dev/null || true
+
+# Check filesystem before shrinking
+echo "Checking filesystem..."
+e2fsck -fy "${LOOP_DEV}p2" || true
+
+# Shrink filesystem to minimum size
+echo "Shrinking filesystem to minimum..."
+resize2fs -M "${LOOP_DEV}p2"
+
+echo "Filesystem shrunk successfully"
+echo ""
+echo "Synchronizing..."
 sync
 
 # Cleanup will be called automatically by trap
