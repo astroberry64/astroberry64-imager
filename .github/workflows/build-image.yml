@@ -29,6 +29,10 @@ on:
   repository_dispatch:
     types: [package-updated]
 
+permissions:
+  contents: write
+  packages: write
+
 env:
   BUILD_VARIANT: ${{ github.event.inputs.variant || 'lite' }}
   UPLOAD_DEST: ${{ github.event.inputs.upload_destination || 'github' }}
