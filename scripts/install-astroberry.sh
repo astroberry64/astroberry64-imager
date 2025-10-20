@@ -23,7 +23,7 @@ apt-get update
 # Install astroberry64-server-full
 echo "Installing astroberry64-server-full..."
 echo "This will take several minutes..."
-apt-get install -y --no-install-recommends astroberry64-server-full || {
+apt-get install -y -o Dpkg::Options::="--force-confold" --no-install-recommends astroberry64-server-full || {
     echo "ERROR: Failed to install astroberry64-server-full"
     exit 1
 }
